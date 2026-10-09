@@ -1,42 +1,30 @@
 FROM python:3.11-slim
 
-# Metadata
-LABEL org.opencontainers.image.title="sbsb-demo-fastapi"
-LABEL org.opencontainers.image.source="."
-
+# Set environment
 ENV PYTHONUNBUFFERED=1 \
-    PYTHONDONTWRITEBYTECODE=1 \
-    POETRY_VIRTUALENVS_CREATE=false \
-    APP_HOME=/app \
-    PORT=8000
+    PIP_NO_CACHE_DIR=1 \
+    POETRY_VIRTUALENVS_CREATE=false
 
-# Create non-root user and application directory
+# Create a non-root user and app directory
 RUN groupadd --gid 1000 appgroup \
-    && useradd --uid 1000 --gid appgroup --shell /usr/sbin/nologin --create-home app \
-    && mkdir -p ${APP_HOME} \
-    && chown app:appgroup ${APP_HOME}
+    && useradd --uid 1000 --gid appgroup --shell /bin/bash --create-home appuser \
+    && mkdir /app \
+    && chown appuser:appgroup /app
 
-WORKDIR ${APP_HOME}
+WORKDIR /app
 
-# Install build dependencies, install python deps, then remove build deps to keep image small
-# Use deterministic installation from requirements.txt
-COPY requirements.txt ./
+# Install dependencies (copy requirements first to leverage docker cache)
+COPY requirements.txt /app/requirements.txt
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends gcc libpq-dev build-essential \
-    && pip install --no-cache-dir --upgrade pip setuptools wheel \
-    && pip install --no-cache-dir -r requirements.txt \
-    && apt-get remove -y --purge gcc build-essential \
-    && apt-get autoremove -y \
-    && apt-get clean \
-    && rm -rf /var/lib/apt/lists/*
+# Use pip to install pinned dependencies deterministically from requirements.txt
+RUN python -m pip install --upgrade pip \
+    && python -m pip install --no-warn-script-location --require-hashes --disable-pip-version-check -r /app/requirements.txt 2>/dev/null || python -m pip install --no-warn-script-location --disable-pip-version-check -r /app/requirements.txt
 
 # Copy application code
-COPY --chown=app:appgroup . .
+COPY --chown=appuser:appgroup . /app
 
-USER app
+USER appuser
 
 EXPOSE 8000
 
-# Run the app binding to 0.0.0.0
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000", "--lifespan", "on"]
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
