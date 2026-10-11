@@ -9,6 +9,12 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, Session, mapped_column
 
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./data/app.db")
+# SQLAlchemy defaults to psycopg2 for a bare PostgreSQL URL. This app ships
+# psycopg v3, so normalize RDS-style URLs before creating the engine.
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL.removeprefix("postgres://")
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL.removeprefix("postgresql://")
 if DATABASE_URL.startswith("sqlite"):
     Path("data").mkdir(parents=True, exist_ok=True)
     engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
