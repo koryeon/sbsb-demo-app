@@ -1,0 +1,28 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sbsb
+      POSTGRES_USER: sbsb
+      POSTGRES_PASSWORD: sbsb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sbsb -d sbsb"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  web:
+    build: .
+    environment:
+      DATABASE_URL: postgresql+psycopg://sbsb:sbsb@db:5432/sbsb
+      PORT: 8000
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
